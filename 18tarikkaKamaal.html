@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NutriScan - Personalized Nutrition Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Import three.js library for the 3D animation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrollbars from the canvas */
+        }
+        /* Style for the background canvas */
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1; /* Place it behind all other content */
+        }
+        #image-upload-input { display: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
+        .view { transition: opacity 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen">
+
+    <!-- The 3D background will be rendered on this canvas -->
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- UI Card: Added transparency and backdrop blur to see the animation through it -->
+    <div class="w-full max-w-sm bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden mx-4 my-8 ring-1 ring-black ring-opacity-5">
+        <div class="p-6">
+            <!-- Header Section (Shared across views) -->
+            <div class="text-center mb-6">
+                <div class="flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                    <h1 class="text-2xl font-bold text-gray-800">NutriScan</h1>
+                </div>
+                <p id="header-subtitle" class="text-gray-500 text-sm mt-1">Your personal nutrition assistant.</p>
+            </div>
+
+            <!-- View 1: Profile Input -->
+            <div id="profile-view" class="view">
+                <h2 class="text-lg font-semibold text-gray-700 mb-4 text-center">Tell us about yourself</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label for="age" class="block text-sm font-medium text-gray-600">Age</label>
+                        <input type="number" id="age" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" placeholder="e.g., 25">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="weight" class="block text-sm font-medium text-gray-600">Weight (kg)</label>
+                            <input type="number" id="weight" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" placeholder="e.g., 70">
+                        </div>
+                        <div>
+                            <label for="height" class="block text-sm font-medium text-gray-600">Height (cm)</label>
+                            <input type="number" id="height" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" placeholder="e.g., 175">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="diet" class="block text-sm font-medium text-gray-600">Primary Diet Goal</label>
+                        <select id="diet" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500">
+                            <option>Balanced Diet</option>
+                            <option>Weight Loss</option>
+                            <option>Muscle Gain (High Protein)</option>
+                            <option>Low-Carb</option>
+                            <option>Vegan</option>
+                        </select>
+                    </div>
+                </div>
+                <button id="start-scanning-button" class="mt-6 w-full bg-emerald-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">Start Scanning</button>
+            </div>
+
+            <!-- View 2: Upload View -->
+            <div id="upload-view" class="view hidden">
+                <label for="image-upload-input" class="cursor-pointer">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-emerald-500 transition-colors">
+                        <div class="flex justify-center items-center mb-4 gap-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                        </div>
+                        <p class="font-semibold text-gray-700">Scan with Camera</p>
+                        <p class="text-xs text-gray-500 mt-1">Or select an image from your gallery</p>
+                    </div>
+                </label>
+                <input type="file" id="image-upload-input" accept="image/*" capture="environment">
+            </div>
+
+            <!-- View 3: Processing State -->
+            <div id="processing-view" class="view hidden">
+                <div class="mb-4 rounded-lg overflow-hidden">
+                    <img id="image-preview" src="" alt="Nutrition Label Preview" class="w-full h-auto object-cover">
+                </div>
+                <div class="flex items-center justify-center flex-col text-center p-4 bg-gray-50 rounded-lg">
+                    <svg class="animate-spin h-8 w-8 text-emerald-500 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <p id="loading-status" class="text-gray-600 font-medium">Analyzing your image...</p>
+                </div>
+            </div>
+
+            <!-- View 4: Result State -->
+            <div id="result-view" class="view hidden">
+                 <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">Personalized Analysis</h2>
+                    <div class="flex gap-4">
+                        <button id="edit-profile-button" class="text-sm text-gray-500 hover:text-gray-700 font-medium">Edit Profile</button>
+                        <button id="reset-button" class="text-sm text-emerald-600 hover:text-emerald-800 font-medium">Scan New</button>
+                    </div>
+                </div>
+                <div id="analysis-output" class="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar"></div>
+                <div id="error-box" class="hidden mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                    <p class="font-bold">Oops! Something went wrong.</p>
+                    <p id="error-message" class="text-sm"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    // --- 3D Background Animation Script ---
+    document.addEventListener('DOMContentLoaded', () => {
+        let scene, camera, renderer, objects = [];
+        const canvas = document.getElementById('bg-canvas');
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+            scene.add(ambientLight);
+            const pointLight1 = new THREE.PointLight(0x10b981, 1.5, 100);
+            pointLight1.position.set(5, 5, 5);
+            scene.add(pointLight1);
+            const pointLight2 = new THREE.PointLight(0x34d399, 1.5, 100);
+            pointLight2.position.set(-5, -5, 2);
+            scene.add(pointLight2);
+
+            const geometry = new THREE.IcosahedronGeometry(0.3, 0);
+            const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.7 });
+
+            for (let i = 0; i < 100; i++) {
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.x = (Math.random() - 0.5) * 15;
+                mesh.position.y = (Math.random() - 0.5) * 15;
+                mesh.position.z = (Math.random() - 0.5) * 15;
+                mesh.rotation.x = Math.random() * 2 * Math.PI;
+                mesh.rotation.y = Math.random() * 2 * Math.PI;
+                scene.add(mesh);
+                objects.push(mesh);
+            }
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            objects.forEach(obj => {
+                obj.rotation.x += 0.002;
+                obj.rotation.y += 0.004;
+            });
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+    });
+    </script>
+
+    <script>
+        // --- NutriScan App Logic ---
+        // --- STEP 1: Element References & API Config ---
+        const profileView = document.getElementById('profile-view');
+        const uploadView = document.getElementById('upload-view');
+        const processingView = document.getElementById('processing-view');
+        const resultView = document.getElementById('result-view');
+        const imageUploadInput = document.getElementById('image-upload-input');
+        const imagePreview = document.getElementById('image-preview');
+        const loadingStatus = document.getElementById('loading-status');
+        const analysisOutput = document.getElementById('analysis-output');
+        const startScanningButton = document.getElementById('start-scanning-button');
+        const editProfileButton = document.getElementById('edit-profile-button');
+        const resetButton = document.getElementById('reset-button');
+        const errorBox = document.getElementById('error-box');
+        const errorMessage = document.getElementById('error-message');
+        const headerSubtitle = document.getElementById('header-subtitle');
+        const ageInput = document.getElementById('age');
+        const weightInput = document.getElementById('weight');
+        const heightInput = document.getElementById('height');
+        const dietInput = document.getElementById('diet');
+
+        // --- IMPORTANT: PASTE YOUR API KEY HERE ---
+        // Get your key from Google AI Studio: https://aistudio.google.com/
+        const apiKey = "AIzaSyDtn6wlW12392QduBIJrXZaqD84Wxn1sxc"; // <--- PASTE YOUR KEY IN THESE QUOTES
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+        let userProfile = {};
+
+        // --- STEP 2: Event Listeners ---
+        startScanningButton.addEventListener('click', saveProfileAndStart);
+        imageUploadInput.addEventListener('change', handleImageUpload);
+        resetButton.addEventListener('click', resetForNewScan);
+        editProfileButton.addEventListener('click', editProfile);
+
+        // --- STEP 3: Core Functions ---
+        function saveProfileAndStart() {
+            if (!ageInput.value || !weightInput.value || !heightInput.value) {
+                alert('Please fill out all profile fields.');
+                return;
+            }
+            userProfile = {
+                age: ageInput.value,
+                weight: weightInput.value,
+                height: heightInput.value,
+                diet: dietInput.value
+            };
+            profileView.classList.add('hidden');
+            uploadView.classList.remove('hidden');
+            headerSubtitle.textContent = "Scan a nutrition label for a personalized analysis.";
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64Data = reader.result.split(',')[1];
+                imagePreview.src = reader.result;
+                uploadView.classList.add('hidden');
+                processingView.classList.remove('hidden');
+                resultView.classList.add('hidden');
+                errorBox.classList.add('hidden');
+                extractTextFromImage(base64Data);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function extractTextFromImage(base64ImageData) {
+            loadingStatus.textContent = "Extracting text from label...";
+            if (!apiKey) {
+                displayError("API Key is missing. Please add it to the script.");
+                return;
+            }
+
+            const payload = {
+                contents: [{
+                    parts: [
+                        { text: "Extract all text from this image of a nutrition label, focusing on the ingredients list and nutritional facts. Provide only the extracted text." },
+                        { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
+                    ]
+                }]
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error(`API request failed with status ${response.status}.`);
+                const result = await response.json();
+                const extractedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!extractedText) throw new Error("Could not extract any text from the image.");
+
+                analyzeIngredients(extractedText);
+            } catch (error) {
+                console.error("OCR Error:", error);
+                displayError(error.message);
+            }
+        }
+
+        async function analyzeIngredients(text) {
+            loadingStatus.textContent = "Creating personalized analysis...";
+            
+            const systemPrompt = `You are an expert personalized nutritionist. A user with the following profile has scanned a food item:
+- Age: ${userProfile.age || 'Not provided'}
+- Weight: ${userProfile.weight || 'Not provided'} kg
+- Height: ${userProfile.height || 'Not provided'} cm
+- Dietary Goal: ${userProfile.diet || 'Not provided'}
+
+Analyze the following nutrition text based ON THIS PROFILE. Provide a simple, markdown-formatted analysis with these exact sections:
+- '### 📝 Personalized Summary': A brief summary explaining if this food is a good or bad choice for THIS SPECIFIC user's goals.
+- '### ✅ The Good Stuff': A bulleted list of positive aspects relevant to the user's goals.
+- '### ⚠️ Things to Watch Out For': A bulleted list of potential issues FOR THIS USER (e.g., high sugar if they are on a low-carb diet, allergens, etc.).
+Keep the language easy for a non-expert to understand and be encouraging.`;
+
+            const payload = {
+                contents: [{ parts: [{ text: `Here is the nutrition label text: \n\n${text}` }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error(`Analysis failed with status ${response.status}.`);
+                const result = await response.json();
+                const analysisText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!analysisText) throw new Error("The analysis came back empty.");
+
+                displayAnalysis(analysisText);
+            } catch (error) {
+                console.error("Analysis Error:", error);
+                displayError(error.message);
+            }
+        }
+
+        function displayAnalysis(analysisMarkdown) {
+            // Split the markdown into sections based on '###' headers. Filter out any empty strings that result from the split.
+            const sections = analysisMarkdown.split('### ').filter(s => s.trim() !== '');
+
+            // Process each section into its own HTML block
+            let html = sections.map(section => {
+                // Split the section into its title (the first line) and the rest of the content lines
+                const lines = section.trim().split('\n');
+                const title = lines.shift().trim(); // .shift() removes and returns the first line
+
+                // Process the rest of the lines as bullet points
+                const listItems = lines.map(line => {
+                    // Clean the line by removing leading markdown list markers ('-' or '*') and any extra whitespace
+                    const cleanedLine = line.trim().replace(/^[\-\*]\s*/, '');
+                    
+                    // If the line isn't empty after being cleaned, create a list item element
+                    if (cleanedLine) {
+                        // Also, find any bold text (e.g., **text**) within the line and convert it to <strong> tags for proper HTML rendering
+                        const formattedLine = cleanedLine.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-700">$1</strong>');
+                        return `<li class="text-gray-600 ml-5 text-sm list-disc">${formattedLine}</li>`;
+                    }
+                    return ''; // Return an empty string for any empty or whitespace-only lines
+                }).join(''); // Join all the individual <li> strings together
+
+                // If any list items were created, wrap them all in a single <ul> tag
+                const listHtml = listItems ? `<ul>${listItems}</ul>` : '';
+
+                // Assemble the final HTML for the entire section
+                return `<div class="p-4 bg-gray-50 rounded-lg mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-2">${title}</h3>
+                            ${listHtml}
+                        </div>`;
+            }).join(''); // Join all the completed section HTML blocks into a single string for display
+
+            // Set the generated HTML to the analysis output container
+            analysisOutput.innerHTML = html;
+            
+            // Hide the processing view and show the final results view
+            processingView.classList.add('hidden');
+            resultView.classList.remove('hidden');
+        }
+
+        function displayError(message) {
+            errorMessage.textContent = message;
+            processingView.classList.add('hidden');
+            resultView.classList.remove('hidden');
+            analysisOutput.innerHTML = '';
+            errorBox.classList.remove('hidden');
+        }
+
+        function resetForNewScan() {
+            uploadView.classList.remove('hidden');
+            processingView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            errorBox.classList.add('hidden');
+            imageUploadInput.value = '';
+            imagePreview.src = '';
+            analysisOutput.innerHTML = '';
+            errorMessage.textContent = '';
+        }
+
+        function editProfile() {
+            profileView.classList.remove('hidden');
+            uploadView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            headerSubtitle.textContent = "Your personal nutrition assistant.";
+        }
+    </script>
+</body>
+</html>
+
+
